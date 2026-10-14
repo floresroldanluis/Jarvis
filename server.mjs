@@ -44,6 +44,7 @@ const voiceQueue=[];
 const backgroundVoice=new BackgroundVoice({root,data,isBusy:()=>!!active,onChange:status=>emit('background_voice',{status}),onCommand:command=>{
   if(command.review){listenerReview=command.text;emit('voice_review',{text:command.text});backgroundVoice.say('No entendí la petición con suficiente claridad. Vuelve a llamarme Jarvis y repítela, o revisa el texto en la aplicación.').catch(()=>{});return;}
   listenerReview=null;
+  if(updates.status.installing){backgroundVoice.say('JARVIS se está actualizando. Espera a que termine.').catch(()=>{});return;}
   if(/^(?:detente|para|cancela(?: la tarea| todo)?|det[eé]n(?: la tarea)?)[.!]?$/i.test(command.text)){
     voiceQueue.length=0;if(active){active.job.status='cancelled';stopChild(active);emit('job',{job:active.job});backgroundVoice.say('Deteniendo la tarea.').catch(()=>{});}else backgroundVoice.say('No hay ninguna tarea en curso.').catch(()=>{});return;
   }
@@ -144,6 +145,14 @@ const server=http.createServer(async(req,res)=>{
     if(req.headers.origin&&!([base,`http://localhost:${port}`].includes(req.headers.origin)))return json(res,{error:'Origen rechazado'},403);
     if(req.method==='POST'&&url.pathname!=='/api/listen'&&!(req.headers['content-type']||'').startsWith('application/json'))return json(res,{error:'Content-Type inválido'},415);
     if(req.method==='GET'&&url.pathname==='/api/updates')return json(res,updates.status);
+    if(req.method==='POST'&&url.pathname==='/api/updates/install'){
+      if(active||updates.status.installing)return json(res,{error:'Espera a que termine la tarea o actualización activa.'},409);
+      await updates.check();
+      if(!updates.status.available||updates.status.repository!=='floresroldanluis/Jarvis')return json(res,{error:'No hay una actualización oficial disponible.'},400);
+      const log=await fs.open(path.join(data,'update.log'),'a');
+      try{const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'Update-Windows.ps1')],{detached:true,windowsHide:true,stdio:['ignore',log.fd,log.fd]});await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});updates.status.installing=true;child.once('exit',()=>{updates.status.installing=false;});child.unref();}finally{await log.close();}
+      return json(res,{ok:true,message:'Descargando y verificando. JARVIS se reiniciará; vuelve a abrir la aplicación. Si falla antes del reinicio, consulta data/update.log.'},202);
+    }
     if(req.method==='GET'&&url.pathname==='/api/mobile')return json(res,{...mobile.status(),pairing:mobile.pairing()});
     if(req.method==='POST'&&url.pathname==='/api/mobile'){const b=await parsed(req);if(typeof b.enabled!=='boolean')return json(res,{error:'Estado inválido'},400);await(b.enabled?mobile.start():mobile.stop());return json(res,{...mobile.status(),pairing:mobile.pairing()});}
     if(req.method==='POST'&&url.pathname==='/api/updates'){const b=await parsed(req);try{return json(res,b.check===true?await updates.check():await updates.configure(b.repository));}catch(e){return json(res,{error:e.message},400);}}
@@ -152,7 +161,7 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='POST'&&url.pathname==='/api/background-voice'){const b=await parsed(req);if(typeof b.enabled!=='boolean')return json(res,{error:'Estado de escucha inválido'},400);state.settings.alwaysListen=b.enabled;await save();if(b.enabled){await backgroundVoice.start();return json(res,backgroundVoice.status);}return json(res,backgroundVoice.stop());}
     if(req.method==='POST'&&url.pathname==='/api/background-voice/say'){const b=await parsed(req);if(typeof b.text!=='string'||b.text.length>6000)return json(res,{error:'Texto inválido'},400);void backgroundVoice.say(b.text).catch(()=>emit('voice_notice',{text:'No se pudo reproducir el audio.'}));return json(res,{ok:true});}
     if(req.method==='GET'&&url.pathname==='/api/status'){let login='No disponible';try{const r=await runCodex(['login','status']);login=(r.stdout+r.stderr).trim();}catch{}return json(res,{codex:!!codexPath,login,ollama:await ollamaModels(),voice:voiceInfo,ramGB:Math.round(os.totalmem()/1073741824)});}
-    if(req.method==='POST'&&url.pathname==='/api/chat'){if(active)return json(res,{error:'Hay una tarea en marcha. Deténla o espera.'},409);const b=await parsed(req);if(typeof b.text!=='string'||!b.text.trim()||b.text.length>16000)return json(res,{error:'Escribe una solicitud de hasta 16 000 caracteres.'},400);if(!['auto','chat','task'].includes(b.mode))return json(res,{error:'Modo inválido'},400);void startJob(b.text.trim(),b.mode);return json(res,{ok:true},202);}
+    if(req.method==='POST'&&url.pathname==='/api/chat'){if(updates.status.installing)return json(res,{error:'JARVIS se está actualizando. Espera a que termine.'},409);if(active)return json(res,{error:'Hay una tarea en marcha. Deténla o espera.'},409);const b=await parsed(req);if(typeof b.text!=='string'||!b.text.trim()||b.text.length>16000)return json(res,{error:'Escribe una solicitud de hasta 16 000 caracteres.'},400);if(!['auto','chat','task'].includes(b.mode))return json(res,{error:'Modo inválido'},400);void startJob(b.text.trim(),b.mode);return json(res,{ok:true},202);}
     if(req.method==='POST'&&url.pathname==='/api/stop'){voiceQueue.length=0;if(active){active.job.status='cancelled';stopChild(active);emit('job',{job:active.job});}return json(res,{ok:true});}
     if(req.method==='POST'&&url.pathname==='/api/action'){const b=await parsed(req);if(typeof b.action!=='string'||!Object.hasOwn(localActions,b.action))return json(res,{error:'Acción no disponible'},400);return json(res,await localAction(b.action));}
     if(req.method==='POST'&&url.pathname==='/api/settings'){if(active)return json(res,{error:'Espera a que termine la tarea.'},409);const b=await parsed(req);if(!['codex','ollama'].includes(b.engine)||typeof b.model!=='string'||b.model.length>150)return json(res,{error:'Ajustes inválidos'},400);state.settings={...state.settings,engine:b.engine,model:b.model,speak:!!b.speak,voiceAutoSend:b.voiceAutoSend!==false};await save();return json(res,{ok:true});}

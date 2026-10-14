@@ -9,7 +9,7 @@ import java.util.*;
 public class VoiceService extends Service implements RecognitionListener {
  private final Handler h=new Handler(Looper.getMainLooper());
  private SpeechRecognizer recognizer;private TextToSpeech tts;private boolean active=false,speaking=false,pending=false,ttsReady=false;private long armedUntil=0;private int errors=0;private String lastReply="";
- private final Runnable listenTask=()->listen();
+ private final Runnable listenTask=()->listen();private final Runnable versionsTask=new Runnable(){public void run(){if(active){AppUpdates.check(VoiceService.this,false,null);h.postDelayed(this,21600000);}}};
  public static volatile String status="Escucha pausada";
  @Override public void onCreate(){super.onCreate();NotificationManager nm=getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("jarvis-listening","Escucha de JARVIS",NotificationManager.IMPORTANCE_LOW));tts=new TextToSpeech(this,s->{ttsReady=s==TextToSpeech.SUCCESS;if(ttsReady)tts.setLanguage(new Locale("es","ES"));});tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){public void onStart(String id){}public void onDone(String id){h.post(()->{speaking=false;schedule(1000);});}public void onError(String id){onDone(id);}});}
  @Override public int onStartCommand(Intent intent,int flags,int startId){
@@ -20,7 +20,7 @@ public class VoiceService extends Service implements RecognitionListener {
   try{if(Build.VERSION.SDK_INT>=29)startForeground(1,n,android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);else startForeground(1,n);}catch(Exception e){status="Android no permitió activar el micrófono. Abre la app.";stopSelf();return START_NOT_STICKY;}
   if(active)return START_NOT_STICKY;
   if(Build.VERSION.SDK_INT<31||!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)){status="Este equipo no ofrece reconocimiento local compatible. Usa Hablar o escribir.";stopSelf();return START_NOT_STICKY;}
-  try{PairingStore.read(this);recognizer=SpeechRecognizer.createOnDeviceSpeechRecognizer(this);recognizer.setRecognitionListener(this);active=true;status="Esperando Jarvis · modo experimental";schedule(200);}catch(Exception e){status=e.getMessage();stopSelf();}
+  try{PairingStore.read(this);recognizer=SpeechRecognizer.createOnDeviceSpeechRecognizer(this);recognizer.setRecognitionListener(this);active=true;h.post(versionsTask);status="Esperando Jarvis · modo experimental";schedule(200);}catch(Exception e){status=e.getMessage();stopSelf();}
   return START_NOT_STICKY;
  }
  private void schedule(long delay){h.removeCallbacks(listenTask);if(active&&!speaking)h.postDelayed(listenTask,delay);}

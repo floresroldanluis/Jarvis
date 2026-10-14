@@ -74,13 +74,13 @@ Ejecuta `Install-Windows.ps1` una vez. Registra el inicio automático para tu us
 
 ## Versiones de GitHub
 
-En Ajustes > Versiones y actualizaciones indica `usuario/repositorio`. Se consulta la última Release pública al arrancar y cada seis horas con el servidor activo. El botón permite consultar en cualquier momento. Si hay una versión superior se ofrece su publicación. **No se instala código automáticamente**. Un repositorio privado necesita un canal de distribución autenticado que aún no está implementado; nunca introduzcas tokens en este campo.
+En Ajustes > Versiones y actualizaciones indica `usuario/repositorio`. Se consulta la última Release pública al arrancar y cada seis horas con el servidor activo. El botón permite consultar en cualquier momento. El instalador de Windows solo acepta publicaciones de floresroldanluis/Jarvis. Si hay una versión superior se ofrece su publicación. **Actualizar ahora** descarga la versión oficial, verifica SHA256, prepara las dependencias y reinicia el servidor conservando datos, memoria y documentos. También puedes ejecutar Update-Windows.ps1. La copia anterior queda en data/update-*/backup y se restaura si falla el arranque. La instalación se inicia al pulsar el botón; no se aplican cambios silenciosos mientras trabajas. Un repositorio privado necesita un canal de distribución autenticado que aún no está implementado; nunca introduzcas tokens en este campo.
 
 El workflow `.github/workflows/release.yml` prueba la app y genera ZIP + SHA256 al subir una etiqueta `vX.Y.Z` que coincida con package.json. No subas `data/`, `memory/`, `workspace/`, archivos `.env` ni credenciales. GitHub aloja el código y las publicaciones; GitHub Pages no ejecuta este servidor Windows.
 
 ## Android: celular y tablet
 
-APK inicial: `downloads/JARVIS-Android-1.0.0.apk` (firmada para desarrollo). Admite Android 8 o posterior; la escucha local experimental requiere Android 12 o posterior con reconocimiento de español local disponible. La APK se compiló y su firma se verificó; todavía no se ha probado en un dispositivo real.
+APK inicial: `downloads/JARVIS-Android-1.0.1.apk` (firmada para desarrollo). Admite Android 8 o posterior; la escucha local experimental requiere Android 12 o posterior con reconocimiento de español local disponible. La APK se compiló y su firma se verificó; todavía no se ha probado en un dispositivo real.
 
 1. Instala la APK en Android usando el instalador del sistema.
 2. En la PC abre Ajustes > Conectar Android y pulsa Activar conexión móvil.
@@ -98,4 +98,4 @@ La vinculación se cifra con Android Keystore; el respaldo de la app está desha
 
 ### Compilar Android
 
-Usa `android/Build-Android.ps1` con JAVA_HOME (JDK 17), ANDROID_HOME, Android SDK plataforma 35 y build-tools 36.0.0. Genera la APK en `data/JARVIS-Android.apk`. Conserva de forma privada `data/android-development.jks`: las actualizaciones Android deben firmarse con la misma clave. No se incluye esta clave en GitHub. Para distribución de producción hace falta configurar una clave de lanzamiento privada y probar los dispositivos objetivo. La app ofrece acceso a las versiones en GitHub; instalar una APK nueva requiere la acción del usuario en Android.
+Usa `android/Build-Android.ps1` con JAVA_HOME (JDK 17), ANDROID_HOME, Android SDK plataforma 35 y build-tools 36.0.0. Genera la APK en `data/JARVIS-Android.apk`. Conserva de forma privada `data/android-development.jks`: las actualizaciones Android deben firmarse con la misma clave. No se incluye esta clave en GitHub. Para distribución de producción hace falta configurar una clave de lanzamiento privada y probar los dispositivos objetivo. La app consulta versiones al abrirse y cada seis horas mientras la escucha esté activa; avisa si hay una APK superior. También ofrece acceso a las versiones en GitHub; instalar una APK nueva requiere la acción del usuario en Android.

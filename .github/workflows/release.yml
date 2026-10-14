@@ -17,6 +17,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows-updater.test.ps1
       - name: Verify release tag
         shell: pwsh
         run: |
@@ -46,5 +47,5 @@ jobs:
           $tag = "v$version"
           gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Output "Release already exists: $tag"; exit 0 }
-          gh release create $tag jarvis-windows.zip SHA256SUMS.txt downloads/JARVIS-Android-1.0.0.apk --target $env:GITHUB_SHA --generate-notes
+          gh release create $tag jarvis-windows.zip SHA256SUMS.txt "downloads/JARVIS-Android-$version.apk" --target $env:GITHUB_SHA --generate-notes
           if ($LASTEXITCODE -ne 0) { throw 'Failed to publish release' }

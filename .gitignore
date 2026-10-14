@@ -10,4 +10,4 @@ node_modules/
 *.apk
 android/.gradle/
 android/build/
-!downloads/JARVIS-Android-1.0.0.apk
+!downloads/JARVIS-Android-*.apk
