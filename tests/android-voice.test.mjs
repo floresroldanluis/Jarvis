@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {mkdtemp,rm} from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import {fileURLToPath} from 'node:url';
+const exec=promisify(execFile),root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+test('Android wake handles Hola Jarvis, greeting-only follow-up, expiry, confidence and automatic manual dictation',{skip:!process.env.JAVA_HOME},async()=>{const temp=await mkdtemp(path.join(os.tmpdir(),'jarvis-android-voice-'));try{await exec(path.join(process.env.JAVA_HOME,'bin','javac.exe'),['-encoding','UTF-8','-d',temp,path.join(root,'android/src/com/jarvis/assistant/VoiceTrigger.java'),path.join(root,'tests/VoiceTriggerTest.java')],{windowsHide:true});const result=await exec(path.join(process.env.JAVA_HOME,'bin','java.exe'),['-cp',temp,'com.jarvis.assistant.VoiceTriggerTest'],{windowsHide:true});assert.match(result.stdout,/auto-send routing passed/);}finally{await rm(temp,{recursive:true,force:true});}});

@@ -80,7 +80,7 @@ El workflow `.github/workflows/release.yml` prueba la app y genera ZIP + SHA256 
 
 ## Android: celular y tablet
 
-APK inicial: `downloads/JARVIS-Android-1.2.0.apk` (firmada para desarrollo). Admite Android 8 o posterior; la escucha local experimental requiere Android 12 o posterior con reconocimiento de español local disponible. La APK se compiló y su firma se verificó; todavía no se ha probado en un dispositivo real.
+APK inicial: `downloads/JARVIS-Android-1.2.1.apk` (firmada para desarrollo). Admite Android 8 o posterior; la escucha local experimental requiere Android 12 o posterior con reconocimiento de español local disponible. La APK se compiló y su firma se verificó; todavía no se ha probado en un dispositivo real.
 
 1. Instala la APK en Android usando el instalador del sistema.
 2. En la PC abre Ajustes > Conectar Android y pulsa Activar conexión móvil.
@@ -88,9 +88,9 @@ APK inicial: `downloads/JARVIS-Android-1.2.0.apk` (firmada para desarrollo). Adm
 4. Abre JARVIS en Android, pulsa Importar archivo de vinculación y selecciona el JSON.
 5. Ambos equipos deben estar en la misma Wi-Fi o VPN privada. El puente usa HTTPS 4318, certificado fijado y token aleatorio; no admite direcciones públicas ni peticiones web con Origin. El puerto local 4317 sigue restringido a la PC.
 6. Si Windows bloquea 4318, permite el servidor Node únicamente en red privada desde el diálogo del sistema. No abras puertos en tu router.
-7. Puedes escribir o dictar y revisar el texto. Para escuchar al usar otras apps pulsa Activar escucha en segundo plano y concede micrófono y notificaciones. Empieza cada petición con Jarvis. Pausa desde la app o la notificación.
+7. Puedes escribir y pulsar Enviar, o usar Hablar y enviar para mandar el dictado al terminar. Para escuchar al usar otras apps pulsa Activar escucha en segundo plano y concede micrófono y notificaciones. Empieza con Hola Jarvis o Jarvis. Pausa desde la app o la notificación.
 
-La escucha Android es experimental: el servicio de reconocimiento del equipo puede detenerla, consumir batería o no disponer del idioma local. No garantiza funcionamiento sin interrupciones con la pantalla bloqueada. No se inicia sola al reiniciar el teléfono: abre la app y actívala. No se usa reconocimiento de nube para la escucha automática; el dictado manual usa el proveedor configurado en Android y puede emplear Internet.
+La escucha Android es experimental: el servicio de reconocimiento del equipo puede detenerla, consumir batería o no disponer del idioma local. No garantiza funcionamiento sin interrupciones con la pantalla bloqueada. No se inicia sola al reiniciar el teléfono: abre la app y actívala. Por defecto se intenta solo reconocimiento local. Si autorizas la opción de reconocimiento del sistema, su proveedor puede procesar audio usando Internet, incluso antes de decir la frase de activación. El dictado manual usa el proveedor configurado en Android y puede emplear Internet.
 
 La PC ejecuta los pedidos y debe permanecer encendida, despierta y conectada. La APK ejecuta localmente los pedidos de abrir apps y navegación de Android. Los documentos, correos y consultas a Codex siguen requiriendo la PC vinculada. No descarga todavía los documentos generados dentro de la app (están en la PC).
 
@@ -128,10 +128,24 @@ JARVIS consulta el catálogo del menú Inicio del usuario y resuelve nombres exa
 
 ### Android y tablet
 
-Instala JARVIS-Android-1.2.0.apk sobre la anterior; usa la misma clave de firma y conserva la vinculación. Las solicitudes de apps sin destino explícito se resuelven en ese Android, por texto o voz: «abre Chrome», «abre Gmail», «vuelve al inicio», «atrás», «muestra aplicaciones recientes». Añade «en mi PC» o «de mi PC» para enviarlas a la computadora vinculada. El control local puede usarse sin vincular una PC; las otras tareas siguen necesitándola.
+Instala JARVIS-Android-1.2.1.apk sobre la anterior; usa la misma clave de firma y conserva la vinculación. Las solicitudes de apps sin destino explícito se resuelven en ese Android, por texto o voz: «abre Chrome», «abre Gmail», «vuelve al inicio», «atrás», «muestra aplicaciones recientes». Añade «en mi PC» o «de mi PC» para enviarlas a la computadora vinculada. El control local puede usarse sin vincular una PC; las otras tareas siguen necesitándola.
 
 Para inicio/atrás/recientes y apertura desde la escucha en segundo plano, pulsa Habilitar control del dispositivo en JARVIS, lee la explicación y activa tú el servicio JARVIS en Accesibilidad de Android. La aplicación no activa permisos por sí misma. El servicio solo observa cambios de app en primer plano y usa acciones globales; no lee textos de pantallas, no obtiene capturas ni pulsa controles de otras apps. Puedes desactivarlo en los ajustes del sistema.
 
 «Cierra esta aplicación» o «cierra [app en primer plano]» vuelve al inicio mediante accesibilidad. JARVIS lo describe como salir de la app, que puede seguir en segundo plano. No fuerza la detención de apps de terceros, no requiere root y no promete control administrativo total. Si la app indicada no está al frente, informa ese hecho y no actúa sobre otra. Android puede impedir aperturas desde el fondo o con pantalla bloqueada; en ese caso informa del límite.
 
 Se verificaron el catálogo real de Windows, el protocolo y cierre con procesos simulados, el enrutamiento Java y la compilación/firma Android. No se cerraron ventanas del usuario durante las pruebas. Falta validar apertura y accesibilidad en los dispositivos Android físicos.
+
+## Corrección de voz Android (1.2.1)
+
+- La escucha reconoce «Hola Jarvis, [pedido]» y conserva «Jarvis, [pedido]». Un saludo solo responde Te escucho y abre una ventana de 15 segundos para decir la petición sin repetir el nombre. La frase de activación debe estar al principio; una mención de Jarvis dentro de una conversación no ejecuta nada.
+- Hablar y enviar remite el resultado del dictado automáticamente a la acción local o a la PC vinculada. Ya no lo deja únicamente escrito. El botón implica una petición explícita, por lo que no exige repetir la frase de activación. Cancelar el dictado no envía nada. El micrófono del teclado es independiente y no se trata automáticamente como una petición.
+- El dictado manual suspende temporalmente la escucha del servicio para que ambos no disputen el micrófono, y la reanuda si estaba activa. Conserva ese estado al recrearse la actividad.
+- La escucha se reanuda al abrir JARVIS si estaba habilitada y ya tiene micrófono y notificaciones autorizados. Pausar se conserva y evita esa reanudación automática. Tras reiniciar el teléfono debes abrir JARVIS; no se inicia un micrófono desde BOOT_COMPLETED.
+- Los errores temporales del proveedor se reintentan con espera creciente, sin detenerse después de cinco errores. Un vigilante recupera sesiones sin respuesta y una lectura de voz que no termine. Mientras JARVIS habla pausa el micrófono para evitar escucharse a sí mismo.
+- La pantalla y la notificación muestran el estado. El último pedido mostrado corresponde a una activación; el habla que no activa JARVIS no se guarda como conversación ni se envía a la PC.
+- Si falta reconocimiento local o español sin conexión, la app muestra el motivo. Puedes instalar español para el proveedor local o, voluntariamente, habilitar Permitir reconocimiento del sistema si falta el local. Esta opción puede enviar audio al proveedor y requiere Internet; está deshabilitada por defecto. Si un motor local existe pero no admite español, la alternativa solo se prueba si autorizaste esa opción.
+
+La API de reconocimiento de Android no garantiza escucha ininterrumpida y no está diseñada como motor permanente de hotword. El ahorro de batería, micrófonos usados por otras apps, bloqueo y servicios del fabricante pueden suspenderla. Estas correcciones se comprobaron con pruebas de activación, envío/enrutamiento y compilación/firma; falta validarlas con el micrófono del dispositivo físico del usuario. No se afirma funcionamiento 24/7 en todos los dispositivos.
+
+Mientras la escucha está activa, el servicio solicita un bloqueo parcial de CPU con vencimiento y renovación para reducir suspensiones al apagar la pantalla. Lo libera al pausar, durante el dictado externo y al destruirse. Solicita además recuperación de servicio por Android si su proceso termina, respetando la preferencia de pausa. Estas medidas no impiden que el fabricante o un cierre forzado del usuario lo detengan y consumen batería.

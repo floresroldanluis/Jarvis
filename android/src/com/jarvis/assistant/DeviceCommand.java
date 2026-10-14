@@ -5,7 +5,7 @@ import java.util.regex.*;
 final class DeviceCommand {
  final String action,query;DeviceCommand(String a,String q){action=a;query=q;}
  static String normal(String s){return Normalizer.normalize(s,Normalizer.Form.NFKD).replaceAll("\\p{M}","").toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9 ]"," ").replaceAll("\\s+"," ").trim();}
- static DeviceCommand parse(String text){String t=normal(text).replaceFirst("^jarvis +","").replaceFirst(" +por favor$","");
+ static DeviceCommand parse(String text){String t=normal(text).replaceFirst("^(?:hola +)?jarvis +","").replaceFirst(" +por favor$","");
   if(t.matches(".*\\b(?:en|de) (?:mi |el |la )?(?:pc|computadora|ordenador|escritorio)\\b.*"))return null;
   t=t.replaceFirst(" +(?:en|de) (?:mi |el |la )?(?:celular|telefono|tablet|android)$","");
   if(t.matches("(?:vuelve|ve|ir) (?:al |a |a la )?(?:inicio|pantalla de inicio)|inicio|pantalla de inicio"))return new DeviceCommand("home","");
