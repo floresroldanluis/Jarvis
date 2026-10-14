@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $jarvisKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $jarvisValue = $null
 try { $jarvisValue = Get-ItemPropertyValue -Path $jarvisKey -Name 'JarvisOS' -ErrorAction Stop } catch [System.Management.Automation.PSArgumentException] {}

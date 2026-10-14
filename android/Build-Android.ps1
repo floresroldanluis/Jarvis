@@ -1,4 +1,4 @@
-param([string]$SdkRoot=$env:ANDROID_HOME)
+﻿param([string]$SdkRoot=$env:ANDROID_HOME)
 $ErrorActionPreference='Stop'
 if (!$SdkRoot) { throw 'Define ANDROID_HOME con tu Android SDK.' }
 $jarvisAndroid=$PSScriptRoot

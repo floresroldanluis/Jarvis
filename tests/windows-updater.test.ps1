@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 $jarvisOriginal=Split-Path $PSScriptRoot
 $jarvisTestRoot=Join-Path $env:TEMP ('jarvis-updater-check-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $jarvisTestRoot | Out-Null

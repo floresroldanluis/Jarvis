@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 # Per-user install registration; retain the existing app and its private data.
 $jarvisLauncher = Join-Path $PSScriptRoot 'Start-Jarvis.ps1'
 if (!(Test-Path -LiteralPath $jarvisLauncher)) { throw 'No se encontró Start-Jarvis.ps1.' }
