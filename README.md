@@ -94,8 +94,9 @@ La escucha Android es experimental: el servicio de reconocimiento del equipo pue
 
 La PC ejecuta los pedidos y debe permanecer encendida, despierta y conectada. Esta versión móvil conversa y envía tareas; no controla arbitrariamente otras aplicaciones de Android y no descarga todavía los documentos generados dentro de la app (están en la PC).
 
-La vinculación se cifra con Android Keystore; el respaldo de la app está deshabilitado. Desactiva el puente desde la PC para cortar el acceso. Para revocar definitivamente un código: desactiva el puente, elimina exclusivamente `data/mobile.json` y vuelve a activarlo. Eso cambia el token y el certificado.
+La vinculación se cifra con Android Keystore; el respaldo de la app está deshabilitado. Desactiva el puente desde la PC para cortar el acceso. Para revocar definitivamente un código: desactiva el puente, cierra el servidor JARVIS, elimina exclusivamente `data/mobile.json` y vuelve a abrir JARVIS antes de activar el puente. Eso cambia el token y el certificado.
 
 ### Compilar Android
 
 Usa `android/Build-Android.ps1` con JAVA_HOME (JDK 17), ANDROID_HOME, Android SDK plataforma 35 y build-tools 36.0.0. Genera la APK en `data/JARVIS-Android.apk`. Conserva de forma privada `data/android-development.jks`: las actualizaciones Android deben firmarse con la misma clave. No se incluye esta clave en GitHub. Para distribución de producción hace falta configurar una clave de lanzamiento privada y probar los dispositivos objetivo. La app consulta versiones al abrirse y cada seis horas mientras la escucha esté activa; avisa si hay una APK superior. También ofrece acceso a las versiones en GitHub; instalar una APK nueva requiere la acción del usuario en Android.
+
