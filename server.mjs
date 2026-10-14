@@ -13,6 +13,8 @@ import {BackgroundVoice} from './background-voice.mjs';
 import {UpdateChecker} from './updates.mjs';
 import {MobileBridge} from './mobile.mjs';
 import {PersonalMemory,personalStatement} from './personal-memory.mjs';
+import {DesktopApps,desktopCommand} from './desktop-apps.mjs';
+const desktopApps=new DesktopApps();
 const exec=promisify(execFile), root=path.dirname(fileURLToPath(import.meta.url));
 const data=path.join(root,'data'), vault=path.join(root,'memory'), workspace=path.join(root,'workspace');
 await Promise.all([data,vault,workspace].map(p=>fs.mkdir(p,{recursive:true})));
@@ -81,7 +83,11 @@ async function autoRequest({text,history,memory,current}){
       const draft={id:crypto.randomUUID(),to:action.to,subject:action.subject,body:action.content,status:'draft',jobId:current.job.id,time:new Date().toISOString()};state.drafts.unshift(draft);state.drafts=state.drafts.slice(0,60);pending=true;emit('draft',{draft});replies.push(`Correo redactado para ${draft.to}. Revisa el mensaje y di “envíalo” o pulsa Enviar${mailbox.configured?'.':'; primero conecta tu cuenta en Ajustes.'}`);
     }else if(action.type==='memory'){
       const name=safeNoteName(action.title||'Recuerdo')+'.md';await fs.writeFile(path.join(vault,name),action.content);emit('notes',{notes:await notes()});replies.push('Guardado en memoria: '+name+'.');
-    }else if(action.type==='open')replies.push((await localAction(action.app)).text);
+    }else if(action.type==='open'||action.type==='close'){
+      if(current.job.sourceDevice==='android'&&!/\b(?:en|de)\s+(?:(?:mi|el|la)\s+)?(?:pc|computadora|ordenador|escritorio)\b/i.test(text)){replies.push('Para abrir o salir de apps de Android, da esa orden por separado en la APK. Para controlar esta computadora añade «en mi PC».');current.job.status='blocked';continue;}
+      if(action.type==='open'&&action.app==='memory')replies.push((await localAction('memory')).text);
+      else{const result=await desktopApps.execute({operation:action.type,query:action.app,device:'windows'});replies.push(result.text);if(result.status==='blocked')current.job.status='blocked';}
+    }
     else if(action.type==='answer')replies.push(action.content||plan.reply);
     else if(action.type==='general'){
       const result=await infer({codexPath,env:childEnv,cwd:workspace,prompt:promptFor({text:action.content||text,history,notes:memory,profile:personal.context(),mode:'task'}),schema:path.join(root,'task-schema.json'),sandbox:'workspace-write',current,onEvent:event});replies.push(result.reply);if(result.status==='blocked')current.job.status='blocked';
@@ -123,13 +129,19 @@ async function handlePersonal(text){
  emit('personal',{profile:personal.snapshot()});return true;
 }
 
-async function startJob(text,mode){
+async function startJob(text,mode,sourceDevice='pc'){
   const history=state.messages.slice(-12).map(({role,text})=>({role,text}));
   message('user',text);
-  const job={id:crypto.randomUUID(),text,mode,status:'running',started:new Date().toISOString(),events:[]};state.jobs.unshift(job);state.jobs=state.jobs.slice(0,40);active={job,child:null,abort:new AbortController()};emit('job',{job});await backgroundVoice.setBusy(true);await save();
+  const job={id:crypto.randomUUID(),text,mode,sourceDevice,status:'running',started:new Date().toISOString(),events:[]};state.jobs.unshift(job);state.jobs=state.jobs.slice(0,40);active={job,child:null,abort:new AbortController()};emit('job',{job});await backgroundVoice.setBusy(true);await save();
   const current=active;
   try{
     if(await handlePersonal(text)){job.status='completed';return;}
+    const deviceCommand=mode!=='chat'&&desktopCommand(text);
+    if(deviceCommand){
+      if(sourceDevice==='android'&&!/\b(?:en|de)\s+(?:(?:mi|el|la)\s+)?(?:pc|computadora|ordenador|escritorio)\b/i.test(text)){job.status='blocked';message('assistant','Ese pedido debe ejecutarse en la APK Android. Actualízala para controlar apps locales, o añade «en mi PC» para controlar la computadora.');return;}
+      if(deviceCommand.device==='windows'&&deviceCommand.operation==='open'&&/^(?:memoria|memory)$/i.test(deviceCommand.query)){job.status='completed';message('assistant',(await localAction('memory')).text);return;}
+      const result=await desktopApps.execute(deviceCommand);job.status=result.status;message('assistant',result.text);return;
+    }
     const memory=(await notes()).slice(0,20).map(n=>`${n.name}\n${n.text}`).join('\n').slice(0,30000);
     if(job.status==='cancelled')return;
     if(mode==='auto'&&state.settings.engine==='codex'){await autoRequest({text,history,memory,current});return;}
@@ -206,7 +218,7 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='POST'&&url.pathname==='/api/background-voice'){const b=await parsed(req);if(typeof b.enabled!=='boolean')return json(res,{error:'Estado de escucha inválido'},400);state.settings.alwaysListen=b.enabled;await save();if(b.enabled){await backgroundVoice.start();return json(res,backgroundVoice.status);}return json(res,backgroundVoice.stop());}
     if(req.method==='POST'&&url.pathname==='/api/background-voice/say'){const b=await parsed(req);if(typeof b.text!=='string'||b.text.length>6000)return json(res,{error:'Texto inválido'},400);void backgroundVoice.say(b.text).catch(()=>emit('voice_notice',{text:'No se pudo reproducir el audio.'}));return json(res,{ok:true});}
     if(req.method==='GET'&&url.pathname==='/api/status'){let login='No disponible';try{const r=await runCodex(['login','status']);login=(r.stdout+r.stderr).trim();}catch{}return json(res,{codex:!!codexPath,login,ollama:await ollamaModels(),voice:voiceInfo,ramGB:Math.round(os.totalmem()/1073741824)});}
-    if(req.method==='POST'&&url.pathname==='/api/chat'){if(updates.status.installing)return json(res,{error:'JARVIS se está actualizando. Espera a que termine.'},409);if(active)return json(res,{error:'Hay una tarea en marcha. Deténla o espera.'},409);const b=await parsed(req);if(typeof b.text!=='string'||!b.text.trim()||b.text.length>16000)return json(res,{error:'Escribe una solicitud de hasta 16 000 caracteres.'},400);if(!['auto','chat','task'].includes(b.mode))return json(res,{error:'Modo inválido'},400);void startJob(b.text.trim(),b.mode);return json(res,{ok:true},202);}
+    if(req.method==='POST'&&url.pathname==='/api/chat'){if(updates.status.installing)return json(res,{error:'JARVIS se está actualizando. Espera a que termine.'},409);if(active)return json(res,{error:'Hay una tarea en marcha. Deténla o espera.'},409);const b=await parsed(req);if(typeof b.text!=='string'||!b.text.trim()||b.text.length>16000)return json(res,{error:'Escribe una solicitud de hasta 16 000 caracteres.'},400);if(!['auto','chat','task'].includes(b.mode))return json(res,{error:'Modo inválido'},400);void startJob(b.text.trim(),b.mode,b.sourceDevice==='android'?'android':'pc');return json(res,{ok:true},202);}
     if(req.method==='POST'&&url.pathname==='/api/stop'){voiceQueue.length=0;if(active){active.job.status='cancelled';stopChild(active);emit('job',{job:active.job});}return json(res,{ok:true});}
     if(req.method==='POST'&&url.pathname==='/api/action'){const b=await parsed(req);if(typeof b.action!=='string'||!Object.hasOwn(localActions,b.action))return json(res,{error:'Acción no disponible'},400);return json(res,await localAction(b.action));}
     if(req.method==='POST'&&url.pathname==='/api/settings'){if(active)return json(res,{error:'Espera a que termine la tarea.'},409);const b=await parsed(req);if(!['codex','ollama'].includes(b.engine)||typeof b.model!=='string'||b.model.length>150)return json(res,{error:'Ajustes inválidos'},400);state.settings={...state.settings,engine:b.engine,model:b.model,speak:!!b.speak,voiceAutoSend:b.voiceAutoSend!==false};await save();return json(res,{ok:true});}

@@ -20,7 +20,7 @@ public class VoiceService extends Service implements RecognitionListener {
   try{if(Build.VERSION.SDK_INT>=29)startForeground(1,n,android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);else startForeground(1,n);}catch(Exception e){status="Android no permitió activar el micrófono. Abre la app.";stopSelf();return START_NOT_STICKY;}
   if(active)return START_NOT_STICKY;
   if(Build.VERSION.SDK_INT<31||!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)){status="Este equipo no ofrece reconocimiento local compatible. Usa Hablar o escribir.";stopSelf();return START_NOT_STICKY;}
-  try{PairingStore.read(this);recognizer=SpeechRecognizer.createOnDeviceSpeechRecognizer(this);recognizer.setRecognitionListener(this);active=true;h.post(versionsTask);status="Esperando Jarvis · modo experimental";schedule(200);}catch(Exception e){status=e.getMessage();stopSelf();}
+  try{recognizer=SpeechRecognizer.createOnDeviceSpeechRecognizer(this);recognizer.setRecognitionListener(this);active=true;h.post(versionsTask);status="Esperando Jarvis · modo experimental";schedule(200);}catch(Exception e){status=e.getMessage();stopSelf();}
   return START_NOT_STICKY;
  }
  private void schedule(long delay){h.removeCallbacks(listenTask);if(active&&!speaking)h.postDelayed(listenTask,delay);}
@@ -33,7 +33,7 @@ public class VoiceService extends Service implements RecognitionListener {
   String command=named?raw.replaceFirst("(?i)^jarvis[ ,:.]*","").trim():raw;armedUntil=0;
   if(command.isEmpty()){armedUntil=System.currentTimeMillis()+15000;say("Te escucho.");return;}
   if(command.matches("(?i)^(pausa escucha|deja de escuchar|silénciate)[.!]?$")){status="Escucha pausada por voz";stopSelf();return;}
-  if(pending){say("Hay una petición en curso. Espera a que termine.");return;}
+  DeviceCommand local=DeviceCommand.parse(command);if(local!=null){String answer=DeviceControl.execute(this,local);status=answer;say(answer);return;}if(pending){say("Hay una petición en curso. Espera a que termine.");return;}
   pending=true;status="Enviando: "+command;
   new Thread(()->{try{JSONObject request=new JSONObject().put("text",command).put("mode","auto");Api.request(this,"/api/chat",request);h.post(()->poll(0));}catch(Exception e){h.post(()->{pending=false;status=e.getMessage();say("No pude enviar el pedido. Revisa la conexión en la aplicación.");});}},"jarvis-command").start();schedule(600);
  }

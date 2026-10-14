@@ -23,7 +23,7 @@ export class MobileBridge{
  if(!privateAddress(req.socket.remoteAddress)||req.headers.origin||!validToken(req.headers.authorization,this.config.token))return json(403,{error:'Conexión no autorizada.'});
  const allowed=(req.method==='GET'&&req.url==='/api/state')||(req.method==='POST'&&['/api/chat','/api/stop'].includes(req.url));if(!allowed)return json(404,{error:'Ruta no disponible.'});
  try{
- let input; if(req.method==='POST'){if(!(req.headers['content-type']||'').startsWith('application/json'))return json(415,{error:'Se requiere JSON.'});let size=0,chunks=[];for await(const c of req){size+=c.length;if(size>80000)return json(413,{error:'Petición demasiado grande.'});chunks.push(c);}input=Buffer.concat(chunks);}
+ let input; if(req.method==='POST'){if(!(req.headers['content-type']||'').startsWith('application/json'))return json(415,{error:'Se requiere JSON.'});let size=0,chunks=[];for await(const c of req){size+=c.length;if(size>80000)return json(413,{error:'Petición demasiado grande.'});chunks.push(c);}input=Buffer.concat(chunks);if(req.url==='/api/chat'){const request=JSON.parse(input.toString());request.sourceDevice='android';input=Buffer.from(JSON.stringify(request));}}
  const result=await fetch(`http://127.0.0.1:${this.localPort}${req.url}`,{method:req.method,headers:input?{'Content-Type':'application/json'}:{},body:input,signal:AbortSignal.timeout(15000)});const value=await result.json();
  if(req.url==='/api/state'&&result.ok)return json(200,{messages:value.messages.slice(-30).map(({role,text,id})=>({role,text,id})),busy:value.busy,jobs:value.jobs.slice(0,5).map(({status,text})=>({status,text}))});
  return json(result.status,value);

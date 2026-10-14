@@ -45,7 +45,7 @@ El audio, la memoria y la interfaz son locales. Codex procesa tus solicitudes y 
 
 Los conectores de Codex devolvieron un error 403 desde el cliente independiente; el correo usa una conexión SMTP propia. No están conectados calendario, WhatsApp ni automatización general de escritorio. JARVIS no promete tareas para las que faltan herramientas o permisos.
 
-Ollama sigue disponible en Ajustes si está instalado en 127.0.0.1:11434. En esta versión solo conversa; no se instaló ni verificó un modelo local.
+Ollama sigue disponible en Ajustes si está instalado en 127.0.0.1:11434. Conversa si tienes un modelo instalado; el control local de abrir/cerrar apps funciona también sin invocar Codex. No se instaló ni verificó un modelo local.
 
 ## Verificación
 
@@ -80,7 +80,7 @@ El workflow `.github/workflows/release.yml` prueba la app y genera ZIP + SHA256 
 
 ## Android: celular y tablet
 
-APK inicial: `downloads/JARVIS-Android-1.1.0.apk` (firmada para desarrollo). Admite Android 8 o posterior; la escucha local experimental requiere Android 12 o posterior con reconocimiento de español local disponible. La APK se compiló y su firma se verificó; todavía no se ha probado en un dispositivo real.
+APK inicial: `downloads/JARVIS-Android-1.2.0.apk` (firmada para desarrollo). Admite Android 8 o posterior; la escucha local experimental requiere Android 12 o posterior con reconocimiento de español local disponible. La APK se compiló y su firma se verificó; todavía no se ha probado en un dispositivo real.
 
 1. Instala la APK en Android usando el instalador del sistema.
 2. En la PC abre Ajustes > Conectar Android y pulsa Activar conexión móvil.
@@ -92,7 +92,7 @@ APK inicial: `downloads/JARVIS-Android-1.1.0.apk` (firmada para desarrollo). Adm
 
 La escucha Android es experimental: el servicio de reconocimiento del equipo puede detenerla, consumir batería o no disponer del idioma local. No garantiza funcionamiento sin interrupciones con la pantalla bloqueada. No se inicia sola al reiniciar el teléfono: abre la app y actívala. No se usa reconocimiento de nube para la escucha automática; el dictado manual usa el proveedor configurado en Android y puede emplear Internet.
 
-La PC ejecuta los pedidos y debe permanecer encendida, despierta y conectada. Esta versión móvil conversa y envía tareas; no controla arbitrariamente otras aplicaciones de Android y no descarga todavía los documentos generados dentro de la app (están en la PC).
+La PC ejecuta los pedidos y debe permanecer encendida, despierta y conectada. La APK ejecuta localmente los pedidos de abrir apps y navegación de Android. Los documentos, correos y consultas a Codex siguen requiriendo la PC vinculada. No descarga todavía los documentos generados dentro de la app (están en la PC).
 
 La vinculación se cifra con Android Keystore; el respaldo de la app está deshabilitado. Desactiva el puente desde la PC para cortar el acceso. Para revocar definitivamente un código: desactiva el puente, cierra el servidor JARVIS, elimina exclusivamente `data/mobile.json` y vuelve a abrir JARVIS antes de activar el puente. Eso cambia el token y el certificado.
 
@@ -117,3 +117,21 @@ En cada respuesta puedes pulsar Me sirvió o abrir Corregir para la próxima vez
 Los intentos fallidos se registran como evidencia pendiente de revisar; un fallo no se trata como una corrección confirmada ni una tarea exitosa. Se conservan hasta 100 aprendizajes y los 30 más recientes se incluyen como contexto del motor. Las correcciones más recientes tienen prioridad para el mismo tema y la solicitud actual puede indicar una excepción. Los archivos, correos y páginas no se convierten automáticamente en reglas. No se guardan claves reconocibles como aprendizajes.
 
 El perfil se guarda únicamente en `data/personal-memory.json`, excluido de GitHub. Al usar Codex, el perfil y los recuerdos incluidos se envían como contexto de esa consulta. Es memoria de preferencias y resultados: no reentrena el modelo, no cambia su código ni amplía permisos. Los aprendizajes se conservan al reiniciar y actualizar Windows.
+
+## Control de aplicaciones y dispositivo (1.2.0)
+
+### Windows
+
+Puedes pedir «Jarvis, abre Word», «cierra mi Bloc de notas de mi PC» o «abre Google Chrome». Las peticiones simples se resuelven localmente sin llamar al modelo; las compuestas también pueden usar las acciones open/close del planificador. Solo conversar conserva su significado: no ejecuta estas acciones.
+
+JARVIS consulta el catálogo del menú Inicio del usuario y resuelve nombres exactos o coincidencias únicas. Si hay varias, pide precisar el nombre. Para cerrar identifica ventanas de la misma sesión y, para aplicaciones genéricas, comprueba el ejecutable registrado. Solicita el cierre normal, sin matar procesos ni responder a diálogos de guardado. Si quedan ventanas, informa de cierre pendiente; no afirma haber cerrado. Aplicaciones elevadas o sin un ejecutable identificable pueden no admitir cierre desde este agente. No se han ampliado los permisos del sandbox de las tareas generales de Codex.
+
+### Android y tablet
+
+Instala JARVIS-Android-1.2.0.apk sobre la anterior; usa la misma clave de firma y conserva la vinculación. Las solicitudes de apps sin destino explícito se resuelven en ese Android, por texto o voz: «abre Chrome», «abre Gmail», «vuelve al inicio», «atrás», «muestra aplicaciones recientes». Añade «en mi PC» o «de mi PC» para enviarlas a la computadora vinculada. El control local puede usarse sin vincular una PC; las otras tareas siguen necesitándola.
+
+Para inicio/atrás/recientes y apertura desde la escucha en segundo plano, pulsa Habilitar control del dispositivo en JARVIS, lee la explicación y activa tú el servicio JARVIS en Accesibilidad de Android. La aplicación no activa permisos por sí misma. El servicio solo observa cambios de app en primer plano y usa acciones globales; no lee textos de pantallas, no obtiene capturas ni pulsa controles de otras apps. Puedes desactivarlo en los ajustes del sistema.
+
+«Cierra esta aplicación» o «cierra [app en primer plano]» vuelve al inicio mediante accesibilidad. JARVIS lo describe como salir de la app, que puede seguir en segundo plano. No fuerza la detención de apps de terceros, no requiere root y no promete control administrativo total. Si la app indicada no está al frente, informa ese hecho y no actúa sobre otra. Android puede impedir aperturas desde el fondo o con pantalla bloqueada; en ese caso informa del límite.
+
+Se verificaron el catálogo real de Windows, el protocolo y cierre con procesos simulados, el enrutamiento Java y la compilación/firma Android. No se cerraron ventanas del usuario durante las pruebas. Falta validar apertura y accesibilidad en los dispositivos Android físicos.

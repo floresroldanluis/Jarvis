@@ -1,13 +1,14 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.jarvis.assistant" android:versionCode="3" android:versionName="1.1.0">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.jarvis.assistant" android:versionCode="4" android:versionName="1.2.0">
  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/>
  <uses-permission android:name="android.permission.INTERNET"/>
  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
- <queries><intent><action android:name="android.speech.RecognitionService"/></intent><intent><action android:name="android.intent.action.TTS_SERVICE"/></intent></queries>
+ <queries><intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent><intent><action android:name="android.speech.RecognitionService"/></intent><intent><action android:name="android.intent.action.TTS_SERVICE"/></intent></queries>
  <application android:label="JARVIS" android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false" android:usesCleartextTraffic="false" android:icon="@android:drawable/ic_btn_speak_now">
   <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
   <service android:name=".VoiceService" android:exported="false" android:foregroundServiceType="microphone"/>
+  <service android:name=".DeviceAccessService" android:label="JARVIS · Control del dispositivo" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true"><intent-filter><action android:name="android.accessibilityservice.AccessibilityService"/></intent-filter><meta-data android:name="android.accessibilityservice" android:resource="@xml/device_control"/></service>
  </application>
 </manifest>

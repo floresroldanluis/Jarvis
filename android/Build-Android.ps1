@@ -9,7 +9,8 @@ $jarvisAndroidJar=Join-Path $SdkRoot 'platforms/android-35/android.jar'
 $jarvisJavaBin=Join-Path $env:JAVA_HOME 'bin'
 New-Item -ItemType Directory -Force $jarvisBuild,(Join-Path $jarvisBuild 'classes'),(Join-Path $jarvisBuild 'dex') | Out-Null
 function Invoke-JarvisTool { param([string]$Tool,[string[]]$ToolArgs) & $Tool @ToolArgs; if ($LASTEXITCODE -ne 0) { throw "Falló la herramienta $Tool ($LASTEXITCODE)" } }
-Invoke-JarvisTool (Join-Path $jarvisTools 'aapt2.exe') @('link','-o',(Join-Path $jarvisBuild 'unsigned.apk'),'--manifest',(Join-Path $jarvisAndroid 'AndroidManifest.xml'),'-I',$jarvisAndroidJar)
+Invoke-JarvisTool (Join-Path $jarvisTools 'aapt2.exe') @('compile','--dir',(Join-Path $jarvisAndroid 'res'),'-o',(Join-Path $jarvisBuild 'resources.zip'))
+Invoke-JarvisTool (Join-Path $jarvisTools 'aapt2.exe') @('link','-o',(Join-Path $jarvisBuild 'unsigned.apk'),'--manifest',(Join-Path $jarvisAndroid 'AndroidManifest.xml'),'-I',$jarvisAndroidJar,(Join-Path $jarvisBuild 'resources.zip'))
 $jarvisSources=@(Get-ChildItem -LiteralPath (Join-Path $jarvisAndroid 'src') -Recurse -Filter '*.java' | ForEach-Object FullName)
 Invoke-JarvisTool (Join-Path $jarvisJavaBin 'javac.exe') (@('-encoding','UTF-8','-source','8','-target','8','-classpath',$jarvisAndroidJar,'-d',(Join-Path $jarvisBuild 'classes'))+$jarvisSources)
 Push-Location (Join-Path $jarvisBuild 'classes')
