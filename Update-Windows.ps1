@@ -43,7 +43,7 @@ $jarvisState=Invoke-RestMethod 'http://127.0.0.1:4317/api/state' -TimeoutSec 3
 if ($jarvisState.busy) { throw 'Se inició una tarea durante la descarga. Vuelve a actualizar al terminar.' }
 $jarvisPid=(Get-NetTCPConnection -LocalPort 4317 -State Listen | Select-Object -First 1).OwningProcess
 $jarvisProcess=Get-CimInstance Win32_Process -Filter "ProcessId = $jarvisPid"
-if (!$jarvisProcess.CommandLine.Contains((Join-Path $jarvisRoot 'server.mjs'))) { throw 'El servidor activo pertenece a otra instalación.' }
+if ($jarvisProcess.CommandLine.Replace('/','\').IndexOf((Join-Path $jarvisRoot 'server.mjs').Replace('/','\'),[StringComparison]::OrdinalIgnoreCase) -lt 0) { throw 'El servidor activo pertenece a otra instalación.' }
 $jarvisFiles=@(Get-ChildItem -LiteralPath $jarvisSource -Recurse -File | Where-Object { !$_.FullName.StartsWith((Join-Path $jarvisSource 'node_modules')+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase) })
 $jarvisAdded=@();$jarvisStopped=$false;$jarvisModulesMoved=$false
 try {
