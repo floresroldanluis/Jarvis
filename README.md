@@ -80,7 +80,7 @@ El workflow `.github/workflows/release.yml` prueba la app y genera ZIP + SHA256 
 
 ## Android: celular y tablet
 
-APK inicial: `downloads/JARVIS-Android-1.0.1.apk` (firmada para desarrollo). Admite Android 8 o posterior; la escucha local experimental requiere Android 12 o posterior con reconocimiento de español local disponible. La APK se compiló y su firma se verificó; todavía no se ha probado en un dispositivo real.
+APK inicial: `downloads/JARVIS-Android-1.1.0.apk` (firmada para desarrollo). Admite Android 8 o posterior; la escucha local experimental requiere Android 12 o posterior con reconocimiento de español local disponible. La APK se compiló y su firma se verificó; todavía no se ha probado en un dispositivo real.
 
 1. Instala la APK en Android usando el instalador del sistema.
 2. En la PC abre Ajustes > Conectar Android y pulsa Activar conexión móvil.
@@ -100,3 +100,20 @@ La vinculación se cifra con Android Keystore; el respaldo de la app está desha
 
 Usa `android/Build-Android.ps1` con JAVA_HOME (JDK 17), ANDROID_HOME, Android SDK plataforma 35 y build-tools 36.0.0. Genera la APK en `data/JARVIS-Android.apk`. Conserva de forma privada `data/android-development.jks`: las actualizaciones Android deben firmarse con la misma clave. No se incluye esta clave en GitHub. Para distribución de producción hace falta configurar una clave de lanzamiento privada y probar los dispositivos objetivo. La app consulta versiones al abrirse y cada seis horas mientras la escucha esté activa; avisa si hay una APK superior. También ofrece acceso a las versiones en GitHub; instalar una APK nueva requiere la acción del usuario en Android.
 
+
+## Perfil y aprendizaje personal (1.1.0)
+
+La primera vez JARVIS pregunta cómo te llamas. Contesta «Me llamo Luis» o guarda tu nombre en Ajustes > Mi perfil y aprendizaje. El perfil es compartido por la PC y sus Android vinculados.
+
+- «Prefiero respuestas breves»: guarda una preferencia explícita.
+- «Corrección: en mis cartas usa un saludo formal»: guarda una corrección para tareas pertinentes.
+- «Eso está mal»: pregunta qué debe cambiar, sin inventar una regla.
+- «Eso está bien»: guarda tu valoración de la tarea anterior.
+- «¿Qué recuerdas de mí?»: muestra tu nombre y los aprendizajes guardados.
+- «Olvida mi perfil»: borra tu nombre y estos aprendizajes, conservando notas Markdown e historial.
+
+En cada respuesta puedes pulsar Me sirvió o abrir Corregir para la próxima vez y describir el cambio. Ajustes permite editar tu nombre, pausar el aprendizaje y eliminar recuerdos individuales. Al pausarlo, las preferencias guardadas dejan de incluirse en las consultas; tu nombre se conserva. Pausar no borra notas Markdown ni historial de conversación.
+
+Los intentos fallidos se registran como evidencia pendiente de revisar; un fallo no se trata como una corrección confirmada ni una tarea exitosa. Se conservan hasta 100 aprendizajes y los 30 más recientes se incluyen como contexto del motor. Las correcciones más recientes tienen prioridad para el mismo tema y la solicitud actual puede indicar una excepción. Los archivos, correos y páginas no se convierten automáticamente en reglas. No se guardan claves reconocibles como aprendizajes.
+
+El perfil se guarda únicamente en `data/personal-memory.json`, excluido de GitHub. Al usar Codex, el perfil y los recuerdos incluidos se envían como contexto de esa consulta. Es memoria de preferencias y resultados: no reentrena el modelo, no cambia su código ni amplía permisos. Los aprendizajes se conservan al reiniciar y actualizar Windows.

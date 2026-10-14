@@ -12,10 +12,12 @@ import {mailStatus,connectMail,disconnectMail,deliverEmail,emailAddress} from '.
 import {BackgroundVoice} from './background-voice.mjs';
 import {UpdateChecker} from './updates.mjs';
 import {MobileBridge} from './mobile.mjs';
+import {PersonalMemory,personalStatement} from './personal-memory.mjs';
 const exec=promisify(execFile), root=path.dirname(fileURLToPath(import.meta.url));
 const data=path.join(root,'data'), vault=path.join(root,'memory'), workspace=path.join(root,'workspace');
 await Promise.all([data,vault,workspace].map(p=>fs.mkdir(p,{recursive:true})));
 const stateFile=path.join(data,'state.json');
+const personal=await new PersonalMemory(data).init();
 const appVersion=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8')).version;
 const updates=await new UpdateChecker({data,version:appVersion}).init();
 void updates.check();
@@ -64,7 +66,7 @@ async function autoRequest({text,history,memory,current}){
     try{await sendDraft(drafts[0].id,drafts[0]);current.job.status='completed';}catch(e){current.job.status='blocked';message('assistant',e.message);}return;
   }
   const event=item=>{if(!['command_execution','file_change'].includes(item.item?.type))return;const source=item.item,detail={type:source.type,text:source.command||source.changes?.map(x=>x.path).join(', ')||'Archivo',status:source.status,output:(source.aggregated_output||'').slice(-2000)};current.job.events.push(detail);emit('activity',{jobId:current.job.id,event:detail});};
-  const plan=await infer({codexPath,env:childEnv,cwd:workspace,prompt:plannerPrompt({text,history,notes:memory,contacts:state.settings.contacts,mailConnected:mailbox.configured}),schema:path.join(root,'plan-schema.json'),current});
+  const plan=await infer({codexPath,env:childEnv,cwd:workspace,prompt:plannerPrompt({text,history,notes:memory,profile:personal.context(),contacts:state.settings.contacts,mailConnected:mailbox.configured}),schema:path.join(root,'plan-schema.json'),current});
   if(!Array.isArray(plan.actions)||plan.actions.length>5)throw new Error('El plan de acciones no es válido.');
   let replies=[],pending=false;
   for(const action of plan.actions){
@@ -82,7 +84,7 @@ async function autoRequest({text,history,memory,current}){
     }else if(action.type==='open')replies.push((await localAction(action.app)).text);
     else if(action.type==='answer')replies.push(action.content||plan.reply);
     else if(action.type==='general'){
-      const result=await infer({codexPath,env:childEnv,cwd:workspace,prompt:promptFor({text:action.content||text,history,notes:memory,mode:'task'}),schema:path.join(root,'task-schema.json'),sandbox:'workspace-write',current,onEvent:event});replies.push(result.reply);if(result.status==='blocked')current.job.status='blocked';
+      const result=await infer({codexPath,env:childEnv,cwd:workspace,prompt:promptFor({text:action.content||text,history,notes:memory,profile:personal.context(),mode:'task'}),schema:path.join(root,'task-schema.json'),sandbox:'workspace-write',current,onEvent:event});replies.push(result.reply);if(result.status==='blocked')current.job.status='blocked';
     }
     const progress={type:action.type,text:action.title||action.subject||action.type,status:'completed',output:''};current.job.events.push(progress);emit('activity',{jobId:current.job.id,event:progress});
   }
@@ -91,7 +93,7 @@ async function autoRequest({text,history,memory,current}){
   message('assistant',replies.join('\n\n')||plan.reply||'Necesito más detalles para completar la solicitud.');
 }
 function emit(type,payload){const msg=`data: ${JSON.stringify({type,...payload})}\n\n`;for(const s of streams)s.write(msg);}
-function message(role,text){const spokenBySystem=(role==='assistant'||role==='error')&&state.settings.alwaysListen&&state.settings.speak;const m={id:crypto.randomUUID(),role,text,time:new Date().toISOString(),spokenBySystem};state.messages.push(m);if(state.messages.length>200)state.messages.shift();emit('message',{message:m});if(spokenBySystem)backgroundVoice.say(text).catch(()=>emit('voice_notice',{text:'No se pudo reproducir la respuesta en los altavoces de Windows.'}));return m;}
+function message(role,text){const spokenBySystem=(role==='assistant'||role==='error')&&state.settings.alwaysListen&&state.settings.speak;const m={id:crypto.randomUUID(),role,text,time:new Date().toISOString(),spokenBySystem,jobId:active?.job.id||null,personal:!!active?.job.personal};state.messages.push(m);if(state.messages.length>200)state.messages.shift();emit('message',{message:m});if(spokenBySystem)backgroundVoice.say(text).catch(()=>emit('voice_notice',{text:'No se pudo reproducir la respuesta en los altavoces de Windows.'}));return m;}
 async function sendDraft(id,updates){
   const draft=state.drafts.find(d=>d.id===id);
   if(!draft||!['draft','failed'].includes(draft.status))throw Object.assign(new Error('Este correo ya fue enviado o está en proceso.'),{status:409});
@@ -100,16 +102,38 @@ async function sendDraft(id,updates){
   Object.assign(draft,{to:updates.to,subject:updates.subject,body:updates.body,status:'sending'});await save();emit('draft',{draft});
   try{const result=await deliverEmail(draft);draft.status='sent';draft.messageId=result.messageId;const job=state.jobs.find(j=>j.id===draft.jobId);if(job&&state.drafts.filter(d=>d.jobId===job.id).every(d=>d.status==='sent')){job.status='completed';emit('job',{job});}message('assistant',`El servidor de correo aceptó el envío a ${draft.to}.`);await save();emit('draft',{draft});return {ok:true,messageId:result.messageId};}catch(e){draft.status='failed';await save();emit('draft',{draft});throw e;}
 }
+async function handlePersonal(text){
+ const previous=state.messages.slice(0,-1).findLast(m=>m.role==='assistant');
+ const action=personalStatement(text,{awaitingName:!personal.value.name&&previous?.text.endsWith('¿Cómo te llamas?')});
+ if(!action)return false;
+ active.job.personal=true;
+ const priorJob=state.jobs.find(j=>j.id!==active.job.id&&!j.personal);
+ if(action.type==='name'){await personal.setName(action.value);message('assistant',`Mucho gusto, ${personal.value.name}. Recordaré tu nombre. Puedes decirme «prefiero respuestas breves» y corregirme con «corrección: ...». ¿En qué te ayudo?`);}
+ else if(action.type==='invalid-name')message('assistant','Dime solo tu nombre, por ejemplo: «Me llamo Luis». ¿Cómo te llamas?');
+ else if(action.type==='preference'){
+  const correction=/^(?:corrige|correcci[oó]n|no vuelvas)/i.test(action.value);
+  const saved=await personal.remember({kind:correction?'correction':'preference',text:action.value,task:correction?priorJob?.text:'',jobId:correction?priorJob?.id:null});
+  message('assistant',saved?'Lo he guardado. Lo tendré en cuenta en las próximas peticiones pertinentes. Puedes revisar o borrar este aprendizaje en Ajustes.':'El aprendizaje está pausado. No guardé esta indicación; puedes activarlo en Ajustes.');
+ }else if(action.type==='negative')message('assistant','Dime qué hice mal y cómo debería hacerlo. Empieza con «corrección: ...» para que guarde la regla concreta y la aplique en tareas similares. No voy a adivinar la corrección.');
+ else if(action.type==='positive'){
+  if(!priorJob)message('assistant','Gracias. Cuando terminemos una tarea puedes decir «eso está bien» para guardar tu valoración.');
+  else{const saved=await personal.remember({kind:'positive',text:'El usuario aprobó el resultado de esta tarea. Es una valoración de ese resultado, no una regla para todas las tareas.',task:priorJob.text,jobId:priorJob.id});message('assistant',saved?'Gracias. Guardé que este resultado te sirvió para esta tarea.':'Gracias. El aprendizaje está pausado; no guardé la valoración.');}
+ }else if(action.type==='recall')message('assistant',personal.recall());
+ else if(action.type==='reset'){await personal.reset();message('assistant','Borré tu perfil y los aprendizajes personales. Las notas Markdown y el historial de conversación se conservan. Si quieres, vuelve a presentarte. ¿Cómo te llamas?');}
+ emit('personal',{profile:personal.snapshot()});return true;
+}
+
 async function startJob(text,mode){
   const history=state.messages.slice(-12).map(({role,text})=>({role,text}));
   message('user',text);
   const job={id:crypto.randomUUID(),text,mode,status:'running',started:new Date().toISOString(),events:[]};state.jobs.unshift(job);state.jobs=state.jobs.slice(0,40);active={job,child:null,abort:new AbortController()};emit('job',{job});await backgroundVoice.setBusy(true);await save();
   const current=active;
   try{
+    if(await handlePersonal(text)){job.status='completed';return;}
     const memory=(await notes()).slice(0,20).map(n=>`${n.name}\n${n.text}`).join('\n').slice(0,30000);
     if(job.status==='cancelled')return;
     if(mode==='auto'&&state.settings.engine==='codex'){await autoRequest({text,history,memory,current});return;}
-    const prompt=promptFor({text,history,notes:memory,mode});let answer='';
+    const prompt=promptFor({text,history,notes:memory,profile:personal.context(),mode});let answer='';
     if(state.settings.engine==='ollama'){
       if(mode==='task')throw new Error('El motor local solo conversa en esta versión. Selecciona Codex para ejecutar tareas.');
       if(!state.settings.model)throw new Error('Selecciona un modelo local instalado.');
@@ -130,7 +154,7 @@ async function startJob(text,mode){
     if(mode==='task'&&state.settings.engine==='codex'){const result=JSON.parse(answer);answer=result.reply;job.status=result.status==='completed'?'completed':'blocked';}else job.status='completed';
     message('assistant',answer.trim());
   }catch(e){if(job.status!=='cancelled'){job.status='failed';job.error=e.message;message('error',e.message);}}
-  finally{job.finished=new Date().toISOString();if(active===current)active=null;await backgroundVoice.setBusy(false);emit('job',{job});await save();if(!active&&voiceQueue.length){const next=voiceQueue.shift();void startJob(next,'auto');}}
+  finally{if(job.status==='failed'&&job.error){await personal.remember({kind:'failure',text:'Falló un intento: '+job.error.slice(0,500)+'. Revisar la causa antes de repetir el método.',task:job.text,jobId:job.id}).catch(()=>{});emit('personal',{profile:personal.snapshot()});}job.finished=new Date().toISOString();if(active===current)active=null;await backgroundVoice.setBusy(false);emit('job',{job});await save();if(!active&&voiceQueue.length){const next=voiceQueue.shift();void startJob(next,'auto');}}
 }
 function stopChild(current){current.abort.abort();if(current.child){if(process.platform==='win32')execFile('taskkill.exe',['/PID',String(current.child.pid),'/T','/F'],{windowsHide:true},()=>{});else current.child.kill('SIGTERM');}}
 function json(res,obj,code=200){res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(obj));}
@@ -145,6 +169,27 @@ const server=http.createServer(async(req,res)=>{
     if(req.headers.origin&&!([base,`http://localhost:${port}`].includes(req.headers.origin)))return json(res,{error:'Origen rechazado'},403);
     if(req.method==='POST'&&url.pathname!=='/api/listen'&&!(req.headers['content-type']||'').startsWith('application/json'))return json(res,{error:'Content-Type inválido'},415);
     if(req.method==='GET'&&url.pathname==='/api/updates')return json(res,updates.status);
+    if(req.method==='GET'&&url.pathname==='/api/personal')return json(res,personal.snapshot());
+    if(req.method==='POST'&&url.pathname==='/api/personal'){
+      const b=await parsed(req);try{
+        if(b.action==='name')await personal.setName(b.name);
+        else if(b.action==='enabled')await personal.enabled(b.enabled);
+        else if(b.action==='remove')await personal.remove(b.id);
+        else if(b.action==='reset')await personal.reset();
+        else return json(res,{error:'Acción de perfil inválida.'},400);
+        emit('personal',{profile:personal.snapshot()});return json(res,personal.snapshot());
+      }catch(e){return json(res,{error:e.message},400);}
+    }
+    if(req.method==='POST'&&url.pathname==='/api/feedback'){
+      if(active)return json(res,{error:'Espera a que termine la tarea para valorar el resultado.'},409);
+      const b=await parsed(req),index=state.messages.findIndex(m=>m.id===b.messageId),target=state.messages[index];
+      if(!target||target.role!=='assistant'||target.personal||!['positive','correction'].includes(b.kind))return json(res,{error:'Resultado o valoración inválida.'},400);
+      const job=state.jobs.find(j=>j.id===target.jobId),task=job?.text||state.messages.slice(0,index).findLast(m=>m.role==='user')?.text||'';
+      try{
+        const lesson=await personal.remember({kind:b.kind,text:b.kind==='positive'?'Resultado aprobado por el usuario para esta tarea: '+target.text.slice(0,900):b.text,task,jobId:target.jobId,messageId:target.id});
+        emit('personal',{profile:personal.snapshot()});return json(res,{saved:!!lesson,profile:personal.snapshot()});
+      }catch(e){return json(res,{error:e.message},400);}
+    }
     if(req.method==='POST'&&url.pathname==='/api/updates/install'){
       if(active||updates.status.installing)return json(res,{error:'Espera a que termine la tarea o actualización activa.'},409);
       await updates.check();
@@ -157,7 +202,7 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='POST'&&url.pathname==='/api/mobile'){const b=await parsed(req);if(typeof b.enabled!=='boolean')return json(res,{error:'Estado inválido'},400);await(b.enabled?mobile.start():mobile.stop());return json(res,{...mobile.status(),pairing:mobile.pairing()});}
     if(req.method==='POST'&&url.pathname==='/api/updates'){const b=await parsed(req);try{return json(res,b.check===true?await updates.check():await updates.configure(b.repository));}catch(e){return json(res,{error:e.message},400);}}
     if(url.pathname==='/api/events'){res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache','Connection':'keep-alive'});res.write(': connected\n\n');streams.add(res);const pulse=setInterval(()=>res.write(': ping\n\n'),20000);req.on('close',()=>{streams.delete(res);clearInterval(pulse);});return;}
-    if(req.method==='GET'&&url.pathname==='/api/state')return json(res,{...state,notes:await notes(),busy:!!active,voice:voiceInfo,workspace,vault,mailbox,backgroundVoice:backgroundVoice.status,listenerReview});
+    if(req.method==='GET'&&url.pathname==='/api/state')return json(res,{...state,notes:await notes(),profile:personal.snapshot(),busy:!!active,voice:voiceInfo,workspace,vault,mailbox,backgroundVoice:backgroundVoice.status,listenerReview});
     if(req.method==='POST'&&url.pathname==='/api/background-voice'){const b=await parsed(req);if(typeof b.enabled!=='boolean')return json(res,{error:'Estado de escucha inválido'},400);state.settings.alwaysListen=b.enabled;await save();if(b.enabled){await backgroundVoice.start();return json(res,backgroundVoice.status);}return json(res,backgroundVoice.stop());}
     if(req.method==='POST'&&url.pathname==='/api/background-voice/say'){const b=await parsed(req);if(typeof b.text!=='string'||b.text.length>6000)return json(res,{error:'Texto inválido'},400);void backgroundVoice.say(b.text).catch(()=>emit('voice_notice',{text:'No se pudo reproducir el audio.'}));return json(res,{ok:true});}
     if(req.method==='GET'&&url.pathname==='/api/status'){let login='No disponible';try{const r=await runCodex(['login','status']);login=(r.stdout+r.stderr).trim();}catch{}return json(res,{codex:!!codexPath,login,ollama:await ollamaModels(),voice:voiceInfo,ramGB:Math.round(os.totalmem()/1073741824)});}
@@ -179,5 +224,5 @@ const server=http.createServer(async(req,res)=>{
     json(res,{error:'No encontrado'},404);
   }catch(e){json(res,{error:e.code==='ENOENT'?'No encontrado':e.message},e.status|| (e.code==='ENOENT'?404:500));}
 });
-server.listen(port,'127.0.0.1',()=>{console.log(`JARVIS OS · http://127.0.0.1:${port}`);if(state.settings.alwaysListen)backgroundVoice.start().catch(()=>{});});
+server.listen(port,'127.0.0.1',async()=>{console.log(`JARVIS OS · http://127.0.0.1:${port}`);if(state.settings.alwaysListen)await backgroundVoice.start().catch(()=>{});if(await personal.introduce()){message('assistant','Hola, soy JARVIS. Quiero conocerte para ayudarte a tu manera. ¿Cómo te llamas?');await save();}});
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>{backgroundVoice.stop();if(active)stopChild(active);server.close();process.exit(0);});
