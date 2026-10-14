@@ -1,0 +1,50 @@
+name: Publish Windows release
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+    paths: ['package.json', '.github/workflows/release.yml']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Verify release tag
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag does not match package version' }
+      - name: Package tracked application files only
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'jarvis-package'
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          $files = git ls-files
+          foreach ($file in $files) {
+            if ($file -match '^(data|memory|workspace|node_modules)/') { throw "Private data tracked: $file" }
+            $target = Join-Path $stage $file
+            New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+            Copy-Item -LiteralPath $file -Destination $target
+          }
+          Compress-Archive -Path "$stage/*" -DestinationPath jarvis-windows.zip
+          $hash = (Get-FileHash jarvis-windows.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  jarvis-windows.zip" | Set-Content -Encoding utf8 SHA256SUMS.txt
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tag = "v$version"
+          gh release view $tag --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Output "Release already exists: $tag"; exit 0 }
+          gh release create $tag jarvis-windows.zip SHA256SUMS.txt downloads/JARVIS-Android-1.0.0.apk --target $env:GITHUB_SHA --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to publish release' }

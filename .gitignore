@@ -1,0 +1,13 @@
+data/
+memory/
+workspace/
+node_modules/
+*.env
+.env*
+*.jks
+*.keystore
+*.pem
+*.apk
+android/.gradle/
+android/build/
+!downloads/JARVIS-Android-1.0.0.apk
